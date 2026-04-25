@@ -1,0 +1,461 @@
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#002d5e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Agenda GCM">
+    
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-512.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="manifest" href="site.webmanifest">
+
+    <title>AGENDA OPERACIONAL DE EVENTOS</title>
+    <style>
+        :root {
+            --primary: #002d5e;
+            --secondary: #004085;
+            --accent: #d4af37;
+            --light: #f4f7f9;
+            --white: #ffffff;
+            --danger: #ff3b30;
+            --success: #34c759;
+            --warning: #ff9500;
+            --info: #007aff;
+            --gray: #8e8e93;
+        }
+        body { font-family: 'Segoe UI', Roboto, sans-serif; margin: 0; background-color: var(--light); color: #333; }
+        
+        /* --- SIDEBAR --- */
+        #sidebar { position: fixed; left: -320px; top: 0; width: 300px; height: 100%; background: var(--white); box-shadow: 4px 0 15px rgba(0,0,0,0.1); transition: 0.3s; z-index: 1000; padding: 20px; overflow-y: auto; }
+        #sidebar.active { left: 0; }
+        .overlay { position: fixed; display: none; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 999; }
+        .menu-toggle { position: fixed; top: 20px; left: 20px; background: var(--primary); color: white; border: none; padding: 12px 15px; border-radius: 8px; cursor: pointer; z-index: 1001; font-weight: bold; }
+        
+        .main-container { max-width: 800px; margin: 0 auto; padding: 80px 20px; text-align: center; }
+        .app-title { font-size: 24px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin: 0; color: var(--primary); }
+        .header-icon-minimal { margin-top: 15px; width: 60px; height: 60px; color: #000; }
+
+        /* --- DASHBOARD --- */
+        .dashboard { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px 0; }
+        .dash-card { background: white; padding: 12px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .dash-card h4 { margin: 0; font-size: 10px; color: var(--gray); text-transform: uppercase; }
+        .dash-card p { margin: 5px 0 0 0; font-size: 18px; font-weight: bold; color: var(--primary); }
+
+        /* --- CARDS EVENTOS --- */
+        .event-card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 6px solid var(--primary); text-align: left; cursor: pointer; position: relative; }
+        .event-card.evento-hoje { border-left-color: var(--danger); outline: 1px solid rgba(255, 59, 48, 0.2); }
+        .event-card.prox-vencimento { border-left-color: var(--warning); outline: 1px solid rgba(255, 149, 0, 0.2); }
+        
+        .status-badge { font-size: 11px; padding: 4px 12px; border-radius: 20px; color: white; float: right; font-weight: 600; }
+        .alert-tag { font-size: 9px; font-weight: 900; letter-spacing: 1px; display: block; margin-bottom: 5px; }
+        
+        .status-aberto { background-color: var(--info); }
+        .status-cumprido { background-color: var(--success); }
+        .status-cancelado { background-color: var(--danger); }
+        .status-adiado { background-color: var(--warning); }
+        
+        .event-info-box { max-height: 0; opacity: 0; overflow: hidden; transition: all 0.4s ease; }
+        .event-card.expanded .event-info-box { max-height: 800px; opacity: 1; margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
+
+        .sidebar-section { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e9ecef; }
+        .form-group { margin-bottom: 12px; text-align: left; }
+        label { display: block; font-size: 11px; font-weight: bold; color: var(--secondary); margin-bottom: 4px; text-transform: uppercase; }
+        input, select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; font-size: 14px; }
+        
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-bottom: 8px; }
+        .btn-gold { background: var(--accent); color: var(--primary); }
+        .btn-blue { background: var(--primary); color: white; }
+        .btn-save { background: var(--success); color: white; }
+
+        .modal-calendario { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        .modal-content { background: white; width: 95%; max-width: 450px; border-radius: 15px; padding: 15px; max-height: 90vh; overflow-y: auto; }
+        .cal-header-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: var(--primary); color: white; padding: 10px; border-radius: 8px; }
+        .nav-btn { background: none; border: 1px solid white; color: white; cursor: pointer; padding: 5px 10px; border-radius: 4px; font-weight: bold; }
+        .grid-calendario { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); }
+        .grid-dias { display: grid; gap: 5px; grid-template-columns: repeat(7, 1fr); margin-top: 10px; }
+        .cal-btn { padding: 10px 2px; background: #eee; border-radius: 6px; text-align: center; cursor: pointer; font-weight: bold; font-size: 12px; border: 1px solid #ddd; }
+        .cal-destaque { background: var(--accent) !important; color: var(--primary) !important; border-color: var(--primary) !important; }
+        .dia-header { font-size: 10px; font-weight: bold; color: var(--primary); text-align: center; padding-bottom: 5px; }
+
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body>
+
+<button class="menu-toggle no-print" onclick="toggleSidebar()">☰ GESTÃO</button>
+<div class="overlay" onclick="closeAll()"></div>
+
+<div id="sidebar" class="no-print">
+    <h2 style="margin-top: 60px; color: var(--primary);">Menu Operacional</h2>
+    
+    <div class="sidebar-section">
+        <h3>Calendário</h3>
+        <button class="btn btn-gold" onclick="abrirPopAno(new Date().getFullYear())">📅 CONSULTAR CALENDÁRIO</button>
+    </div>
+
+    <div class="sidebar-section">
+        <h3>Relatórios</h3>
+        <select id="tipo-relatorio" onchange="toggleFiltrosRelatorio()">
+            <option value="anual">Anual</option>
+            <option value="mensal">Mensal</option>
+            <option value="diario">Diário</option>
+        </select>
+        <div id="filtro-mes" style="display:none; margin-top:5px;">
+            <select id="rel-mes-select">
+                <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+                <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+                <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+                <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+            </select>
+        </div>
+        <div id="filtro-dia" style="display:none; margin-top:5px;">
+            <input type="text" id="rel-dia-input" placeholder="DD/MM/AAAA">
+        </div>
+        <button class="btn btn-blue" onclick="gerarRelatorioPeriodo()">📄 GERAR RELATÓRIO</button>
+    </div>
+
+    <div class="sidebar-section">
+        <h3>Gestão</h3>
+        <button class="btn btn-blue" onclick="abrirGerenciador()">⚙️ EDITAR / EXCLUIR</button>
+    </div>
+
+    <div class="sidebar-section">
+        <h3 id="form-title">Dados do Evento</h3>
+        <input type="hidden" id="edit-index" value="">
+        <div class="form-group"><label>Evento</label><input type="text" id="m-nome"></div>
+        <div class="form-group"><label>Nº do Processo / Ofício</label><input type="text" id="m-processo"></div>
+        <div style="display: flex; gap: 5px;">
+            <div class="form-group"><label>Data</label><input type="text" id="m-data" placeholder="DD/MM/AAAA"></div>
+            <div class="form-group"><label>Hora</label><input type="text" id="m-hora" placeholder="00:00"></div>
+        </div>
+        <div class="form-group"><label>Bairro</label><input type="text" id="m-bairro"></div>
+        <div class="form-group"><label>Endereço</label><input type="text" id="m-rua"></div>
+        <div class="form-group"><label>Efetivo</label><input type="number" id="m-efetivo"></div>
+        <div class="form-group"><label>Responsável</label><input type="text" id="m-resp"></div>
+        <div class="form-group"><label>Contato</label><input type="text" id="m-contato"></div>
+        <div class="form-group">
+            <label>Status Inicial</label>
+            <select id="m-status">
+                <option value="Aberto">Aberto</option>
+                <option value="Cumprido">Cumprido</option>
+                <option value="Cancelado">Cancelado</option>
+                <option value="Adiado">Adiado</option>
+            </select>
+        </div>
+        <button class="btn btn-save" id="btn-salvar-form" onclick="salvarMissao()">SALVAR EVENTO</button>
+        <button class="btn" style="background:#8e8e93; color:white; display:none;" id="btn-cancelar-edit" onclick="limparForm()">CANCELAR EDIÇÃO</button>
+    </div>
+</div>
+
+<div id="modal-cal" class="modal-calendario">
+    <div class="modal-content">
+        <div class="cal-header-nav">
+            <button class="nav-btn" id="btn-ano-ant"> < </button>
+            <h3 id="cal-titulo" style="margin:0;"></h3>
+            <button class="nav-btn" id="btn-ano-prox"> > </button>
+        </div>
+        <div id="cal-container"></div>
+        <button class="btn btn-blue" onclick="fecharModalCal()" style="margin-top:15px;">FECHAR</button>
+    </div>
+</div>
+
+<div id="modalManage" class="no-print" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95%; max-width: 500px; background: white; padding: 25px; border-radius: 15px; display: none; z-index: 2000; box-shadow: 0 0 30px rgba(0,0,0,0.3);">
+    <h3 style="color:var(--primary); margin-top:0;">Gerenciar Banco de Dados</h3>
+    <div id="listaGerenciar" style="max-height: 400px; overflow-y: auto; margin-bottom: 15px; border-top:1px solid #eee;"></div>
+    <button class="btn btn-blue" onclick="closeAll()">FECHAR</button>
+</div>
+
+<div class="main-container">
+    <div class="app-header no-print">
+        <h1 class="app-title">AGENDA OPERACIONAL DE EVENTOS</h1>
+        <svg class="header-icon-minimal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>
+            <circle cx="16" cy="17" r="4" fill="#fff" stroke="currentColor"></circle>
+            <path d="M14.5 17L15.5 18L17.5 16" stroke="currentColor"></path>
+        </svg>
+    </div>
+
+    <div class="dashboard no-print">
+        <div class="dash-card"><h4>Total</h4><p id="dash-total">0</p></div>
+        <div class="dash-card"><h4>Pendentes</h4><p id="dash-abertos" style="color: var(--info);">0</p></div>
+    </div>
+
+    <input type="text" class="search-bar" placeholder="Pesquisar evento..." onkeyup="filtrar(this.value)" style="width:100%; padding:15px; border-radius:25px; border:1px solid #ddd; outline:none; box-sizing: border-box; margin-bottom: 20px;">
+
+    <h3 style="text-align: left; color: var(--gray); font-size: 14px; margin: 0 0 15px 0;">PRÓXIMOS EVENTOS</h3>
+    <div id="listaEventos"></div>
+</div>
+
+<script>
+    let db = { missoes: [] };
+    const mesesNomes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const diasSemanaNomes = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+
+    function carregarDados() {
+        const salvo = localStorage.getItem('db_gcm_v2026_multi_year');
+        if (salvo) db = JSON.parse(salvo);
+        render();
+    }
+
+    function salvarDados() { localStorage.setItem('db_gcm_v2026_multi_year', JSON.stringify(db)); }
+
+    function parseDataJS(str) {
+        if(!str) return new Date(0);
+        const p = str.split('/');
+        return new Date(p[2], p[1] - 1, p[0]);
+    }
+
+    function alterarStatusRapido(idx, novoStatus) {
+        if (novoStatus === "Cancelado") {
+            let motivo = prompt("Motivo do Cancelamento:");
+            if (!motivo) return render(); 
+            db.missoes[idx].motivoCancelamento = motivo;
+            db.missoes[idx].status = novoStatus;
+        } else if (novoStatus === "Adiado") {
+            let novaData = prompt("Informe a NOVA DATA do evento (DD/MM/AAAA):");
+            if (!novaData) return render(); 
+            db.missoes[idx].data = novaData;
+            db.missoes[idx].status = novoStatus;
+        } else if (novoStatus === "Cumprido") {
+            let chefe = prompt("Nome do Chefe de Equipe que cumpriu a missão:");
+            if (!chefe) {
+                alert("É necessário informar o responsável pelo cumprimento.");
+                return render();
+            }
+            db.missoes[idx].chefeCumprimento = chefe;
+            db.missoes[idx].status = novoStatus;
+        } else {
+            db.missoes[idx].status = novoStatus;
+        }
+        
+        salvarDados();
+        render();
+    }
+
+    function render(listaPersonalizada = null) {
+        const container = document.getElementById('listaEventos');
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+        
+        document.getElementById('dash-total').innerText = db.missoes.length;
+        document.getElementById('dash-abertos').innerText = db.missoes.filter(m => m.status === 'Aberto' || m.status === 'Adiado').length;
+
+        let lista = listaPersonalizada || db.missoes.filter(m => {
+            return (m.status === "Aberto" || m.status === "Adiado") && parseDataJS(m.data) >= hoje;
+        }).sort((a, b) => parseDataJS(a.data) - parseDataJS(b.data)).slice(0, 5);
+
+        container.innerHTML = lista.map((m) => {
+            const originalIdx = db.missoes.findIndex(item => item === m);
+            const dataEvento = parseDataJS(m.data);
+            const diffDias = Math.ceil((dataEvento - hoje) / (1000 * 60 * 60 * 24));
+
+            let tagHTML = '';
+            let cardClass = '';
+            if (diffDias === 0) {
+                tagHTML = '<span class="alert-tag" style="color:var(--danger);">● EVENTO HOJE (URGENTE)</span>';
+                cardClass = 'evento-hoje';
+            } else if (diffDias > 0 && diffDias <= 2) {
+                tagHTML = '<span class="alert-tag" style="color:var(--warning);">● EM BREVE (2 DIAS)</span>';
+                cardClass = 'prox-vencimento';
+            }
+
+            return `
+            <div class="event-card ${cardClass}" onclick="this.classList.toggle('expanded')">
+                ${tagHTML}
+                <span class="status-badge status-${m.status.toLowerCase()}">${m.status}</span>
+                <strong>${m.nome}</strong><br><small>📅 ${m.data} às ${m.hora}</small>
+                <div class="event-info-box">
+                    <p><b>📄 Proc:</b> ${m.processo || 'N/A'}</p>
+                    <p><b>📍 Local:</b> ${m.rua}, ${m.bairro}</p>
+                    <p><b>👮 Efetivo:</b> ${m.efetivo} GCMs</p>
+                    <p><b>👤 Resp:</b> ${m.responsavel} | <b>📞</b> ${m.contato}</p>
+                    ${m.status === "Cancelado" ? `<p style="color:var(--danger);"><b>❌ MOTIVO:</b> ${m.motivoCancelamento || 'Não informado'}</p>` : ''}
+                    ${m.status === "Cumprido" ? `<p style="color:var(--success);"><b>✅ CUMPRIDO POR:</b> ${m.chefeCumprimento || 'Não informado'}</p>` : ''}
+                    
+                    <div class="no-print" onclick="event.stopPropagation()" style="background: #f1f1f1; padding: 15px; border-radius: 8px; margin-top:10px;">
+                        <label style="margin-bottom:8px; display:block;">ALTERAR STATUS:</label>
+                        <select onchange="alterarStatusRapido(${originalIdx}, this.value)" style="margin-bottom:10px;">
+                            <option value="Aberto" ${m.status === 'Aberto' ? 'selected' : ''}>Aberto</option>
+                            <option value="Cumprido" ${m.status === 'Cumprido' ? 'selected' : ''}>Cumprido</option>
+                            <option value="Cancelado" ${m.status === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
+                            <option value="Adiado" ${m.status === 'Adiado' ? 'selected' : ''}>Adiado</option>
+                        </select>
+                        <button class="btn btn-blue" onclick="imprimirTicketProfissional(${originalIdx})">🎫 IMPRIMIR ORDEM</button>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function salvarMissao() {
+        const idx = document.getElementById('edit-index').value;
+        const status = document.getElementById('m-status').value;
+        let dataInput = document.getElementById('m-data').value;
+        let motivoCancelamento = "";
+        let chefeCumprimento = "";
+
+        if (status === "Cancelado") {
+            motivoCancelamento = prompt("Motivo do Cancelamento:");
+            if (!motivoCancelamento) return alert("É obrigatório informar o motivo para cancelar.");
+        }
+
+        if (status === "Adiado") {
+            let novaData = prompt("Nova Data (DD/MM/AAAA):", dataInput);
+            if (novaData) dataInput = novaData;
+            else return alert("É obrigatório informar uma nova data para adiar.");
+        }
+
+        if (status === "Cumprido") {
+            chefeCumprimento = prompt("Nome do Chefe de Equipe que cumpriu a missão:");
+            if (!chefeCumprimento) return alert("É obrigatório informar o Chefe de Equipe para marcar como cumprido.");
+        }
+
+        const n = { 
+            nome: document.getElementById('m-nome').value, 
+            processo: document.getElementById('m-processo').value,
+            data: dataInput, 
+            hora: document.getElementById('m-hora').value, 
+            bairro: document.getElementById('m-bairro').value, 
+            rua: document.getElementById('m-rua').value,
+            efetivo: document.getElementById('m-efetivo').value, 
+            responsavel: document.getElementById('m-resp').value, 
+            contato: document.getElementById('m-contato').value,
+            status: status,
+            motivoCancelamento: motivoCancelamento,
+            chefeCumprimento: chefeCumprimento
+        };
+
+        if(!n.nome || !n.data) return alert("Preencha Nome e Data!");
+
+        if(idx !== "") db.missoes[idx] = n; 
+        else db.missoes.push(n);
+
+        salvarDados(); 
+        render(); 
+        limparForm(); 
+        closeAll();
+    }
+
+    function limparForm() {
+        document.querySelectorAll('#sidebar input').forEach(i => i.value = "");
+        document.getElementById('edit-index').value = "";
+        document.getElementById('m-status').value = "Aberto";
+        document.getElementById('form-title').innerText = "Dados do Evento";
+        document.getElementById('btn-salvar-form').innerText = "SALVAR EVENTO";
+        document.getElementById('btn-cancelar-edit').style.display = "none";
+    }
+
+    function gerarRelatorioPeriodo() {
+        const tipo = document.getElementById('tipo-relatorio').value;
+        let filtrados = [];
+        if (tipo === 'anual') filtrados = db.missoes;
+        else if (tipo === 'mensal') filtrados = db.missoes.filter(m => m.data.split('/')[1] === document.getElementById('rel-mes-select').value);
+        else if (tipo === 'diario') filtrados = db.missoes.filter(m => m.data === document.getElementById('rel-dia-input').value);
+        
+        if (filtrados.length === 0) return alert("Nada encontrado.");
+
+        const win = window.open('', '_blank');
+        const rows = filtrados.map(m => `<tr><td>${m.data}</td><td>${m.nome}</td><td>${m.bairro}</td><td>${m.status}</td></tr>`).join('');
+        const content = `<html><head><title>Relatório</title><style>body{font-family:sans-serif;padding:20px;}table{width:100%;border-collapse:collapse;margin-top:20px;}th,td{border:1px solid #000;padding:8px;text-align:left;font-size:12px;}th{background:#eee;}.no-print-area{display:flex;gap:10px;margin-bottom:20px;}.btn-print{padding:10px 20px;background:#002d5e;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:bold;}.btn-close{padding:10px 20px;background:#ff3b30;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:bold;}@media print{.no-print-area{display:none;}}</style></head><body><div class="no-print-area"><button class="btn-print" onclick="window.print()">IMPRIMIR RELATÓRIO</button><button class="btn-close" onclick="window.close()">VOLTAR AO SISTEMA</button></div><h2>Relatório Operacional</h2><table><tr><th>Data</th><th>Evento</th><th>Local</th><th>Status</th></tr>${rows}</table></body></html>`;
+        win.document.open(); win.document.write(content); win.document.close();
+    }
+
+    function imprimirTicketProfissional(idx) {
+        const m = db.missoes[idx];
+        const win = window.open('', '_blank');
+        const content = `<html><head><title>Ticket</title><style>body{font-family:'Courier New',monospace;padding:20px;display:flex;flex-direction:column;align-items:center;}.ticket{width:10cm;padding:15px;border:1px solid #000;}.header{text-align:center;border-bottom:2px dashed #000;padding-bottom:10px;margin-bottom:10px;}.no-print-area{display:flex;gap:10px;margin-bottom:20px;width:10cm;}.btn-print{flex:1;padding:10px;background:#002d5e;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:bold;}.btn-close{flex:1;padding:10px;background:#ff3b30;color:white;border:none;border-radius:5px;cursor:pointer;font-weight:bold;}@media print{.no-print-area{display:none;}}</style></head><body><div class="no-print-area"><button class="btn-print" onclick="window.print()">IMPRIMIR</button><button class="btn-close" onclick="window.close()">VOLTAR</button></div><div class="ticket"><div class="header"><strong>ORDEM DE SERVIÇO - GCM</strong></div><p><b>EVENTO:</b> ${m.nome}<br><b>DATA:</b> ${m.data} - ${m.hora}<br><b>LOCAL:</b> ${m.bairro}<br><b>EFETIVO:</b> ${m.efetivo}<br><b>RESP:</b> ${m.responsavel}</p>${m.status === "Cancelado" ? `<p style="color:red; border-top:1px dashed #000; padding-top:5px;"><b>CANCELADO:</b> ${m.motivoCancelamento}</p>` : ''}${m.status === "Cumprido" ? `<p style="color:green; border-top:1px dashed #000; padding-top:5px;"><b>CUMPRIDO POR:</b> ${m.chefeCumprimento}</p>` : ''}</div></body></html>`;
+        win.document.open(); win.document.write(content); win.document.close();
+    }
+
+    function abrirGerenciador() {
+        const list = document.getElementById('listaGerenciar');
+        list.innerHTML = db.missoes.map((m, i) => `<div style="display:flex; justify-content:space-between; align-items:center; padding:15px 10px; border-bottom:1px solid #eee;"><div style="text-align:left; font-size:13px; flex:1;"><strong>${m.nome}</strong><br><small>${m.data} - ${m.status}</small></div><div style="display:flex; gap:5px;"><button onclick="editarEventoBanco(${i})" style="padding:6px 10px; background:var(--info); color:white; border:none; border-radius:5px; font-size:11px;">EDITAR</button><button onclick="excluirEventoBanco(${i})" style="padding:6px 10px; background:var(--danger); color:white; border:none; border-radius:5px; font-size:11px;">EXCLUIR</button></div></div>`).join('');
+        document.getElementById('modalManage').style.display = 'block'; document.querySelector('.overlay').style.display = 'block';
+    }
+
+    function editarEventoBanco(i) {
+        const m = db.missoes[i];
+        document.getElementById('m-nome').value = m.nome;
+        document.getElementById('m-processo').value = m.processo || "";
+        document.getElementById('m-data').value = m.data;
+        document.getElementById('m-hora').value = m.hora;
+        document.getElementById('m-bairro').value = m.bairro;
+        document.getElementById('m-rua').value = m.rua;
+        document.getElementById('m-efetivo').value = m.efetivo;
+        document.getElementById('m-resp').value = m.responsavel;
+        document.getElementById('m-contato').value = m.contato;
+        document.getElementById('m-status').value = m.status;
+        document.getElementById('edit-index').value = i;
+        document.getElementById('form-title').innerText = "Editando Registro";
+        document.getElementById('btn-salvar-form').innerText = "ATUALIZAR DADOS";
+        document.getElementById('btn-cancelar-edit').style.display = "block";
+        closeAll(); toggleSidebar();
+    }
+
+    function excluirEventoBanco(i) { if(confirm("Deseja excluir este evento permanentemente?")) { db.missoes.splice(i, 1); salvarDados(); render(); abrirGerenciador(); } }
+
+    function abrirPopAno(ano) {
+        const container = document.getElementById('cal-container');
+        document.getElementById('cal-titulo').innerText = `ANO ${ano}`;
+        document.getElementById('btn-ano-ant').onclick = () => abrirPopAno(ano - 1);
+        document.getElementById('btn-ano-prox').onclick = () => abrirPopAno(ano + 1);
+        let html = `<div class="grid-calendario">`;
+        mesesNomes.forEach((mes, idx) => {
+            const mesNum = (idx + 1).toString().padStart(2, '0');
+            const temEv = db.missoes.some(m => m.data.split('/')[1] === mesNum && m.data.split('/')[2] === ano.toString());
+            html += `<div class="cal-btn ${temEv ? 'cal-destaque' : ''}" onclick="abrirPopMes(${idx}, ${ano})">${mes}</div>`;
+        });
+        container.innerHTML = html + `</div>`;
+        document.getElementById('modal-cal').style.display = 'flex';
+    }
+
+    function abrirPopMes(idx, ano) {
+        const container = document.getElementById('cal-container');
+        document.getElementById('cal-titulo').innerText = `${mesesNomes[idx]} ${ano}`;
+        const primeiroDia = new Date(ano, idx, 1).getDay();
+        const diasNoMes = new Date(ano, idx + 1, 0).getDate();
+        let html = `<div class="grid-dias">`;
+        ["D", "S", "T", "Q", "Q", "S", "S"].forEach(d => html += `<div class="dia-header">${d}</div>`);
+        for (let s = 0; s < primeiroDia; s++) html += `<div></div>`;
+        for(let i=1; i<=diasNoMes; i++) {
+            const dataStr = `${i.toString().padStart(2, '0')}/${(idx + 1).toString().padStart(2, '0')}/${ano}`;
+            const temEv = db.missoes.some(m => m.data === dataStr);
+            html += `<div class="cal-btn ${temEv ? 'cal-destaque' : ''}" onclick="abrirPopDia('${dataStr}', ${idx}, ${ano})">${i}</div>`;
+        }
+        container.innerHTML = html + `</div><button class="btn btn-blue" onclick="abrirPopAno(${ano})" style="margin-top:15px;">VOLTAR</button>`;
+    }
+
+    function abrirPopDia(data, idx, ano) {
+        const evs = db.missoes.filter(m => m.data === data);
+        const dataObjeto = parseDataJS(data);
+        const diaSemana = diasSemanaNomes[dataObjeto.getDay()];
+        let content = `<h4 style="color:var(--primary); margin-bottom:10px;">${diaSemana}, ${data}</h4>`;
+        if (evs.length > 0) {
+            content += evs.map(e => `
+                <div style="text-align:left; border:1px solid #ddd; padding:10px; margin-bottom:10px; border-left:5px solid var(--primary); background:#fff; font-size:13px;">
+                    <strong>${e.nome}</strong><br>🕒 <b>Hora:</b> ${e.hora} | 📍 <b>Local:</b> ${e.rua}, ${e.bairro}<br>👮 <b>Efetivo:</b> ${e.efetivo} | 👤 <b>Resp:</b> ${e.responsavel}<br><b>Status:</b> ${e.status}
+                    ${e.status === "Cancelado" ? `<br><span style="color:var(--danger);">❌ <b>Motivo:</b> ${e.motivoCancelamento}</span>` : ''}
+                    ${e.status === "Cumprido" ? `<br><span style="color:var(--success);">✅ <b>Chefe:</b> ${e.chefeCumprimento}</span>` : ''}
+                </div>`).join('');
+        } else { content += "<p>Sem eventos registrados.</p>"; }
+        document.getElementById('cal-container').innerHTML = `<div style="max-height:400px; overflow-y:auto; padding-right:5px;">${content}</div><button class="btn btn-blue" onclick="abrirPopMes(${idx}, ${ano})" style="margin-top:15px;">VOLTAR</button>`;
+    }
+
+    function filtrar(t) { render(db.missoes.filter(m => m.nome.toLowerCase().includes(t.toLowerCase()))); }
+    function toggleSidebar() { document.getElementById('sidebar').classList.toggle('active'); document.querySelector('.overlay').style.display = 'block'; }
+    function closeAll() { document.getElementById('sidebar').classList.remove('active'); document.querySelectorAll('.modal-calendario, #modalManage, .overlay').forEach(el => el.style.display = 'none'); }
+    function fecharModalCal() { document.getElementById('modal-cal').style.display = 'none'; document.querySelector('.overlay').style.display = 'none'; }
+    function toggleFiltrosRelatorio() {
+        const t = document.getElementById('tipo-relatorio').value;
+        document.getElementById('filtro-mes').style.display = t === 'mensal' ? 'block' : 'none';
+        document.getElementById('filtro-dia').style.display = t === 'diario' ? 'block' : 'none';
+    }
+    window.onload = carregarDados;
+</script>
+</body>
+</html><script async data-explicit-opt-in="true" data-cookie-opt-in="true" data-deployment-id="dpl_dXLRBZxWQAm4A52Z63svkJxStggA" src="https://vercel.live/_next-live/feedback/feedback.js"></script>
